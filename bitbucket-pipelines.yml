@@ -1,0 +1,77 @@
+image: node:latest
+
+testStep: &testStep
+  step:
+    name: 'Test'
+    caches:
+      - node
+    script:
+      - apt-get update
+      - npm install --unsafe-perm=true
+      - npm run lint
+
+buildStep: &buildStep
+  step:
+    name: 'Build'
+    caches:
+      - node
+    script:
+      - apt-get update
+      - apt-get install zip unzip --yes
+      - export SKIP_PREFLIGHT_CHECK=true
+      - export NODE_OPTIONS=--openssl-legacy-provider
+      - npm install --only=development
+      - export NODE_ENV=production
+      - npm run build
+      - zip application.zip -r dist/* .next/* package*.json Dockerfile Dockerrun.aws.json pm2.json .npmrc .npmignore
+    artifacts:
+      - application.zip
+
+pipelines:
+  branches:
+    staging:
+      - <<: *testStep
+
+      - <<: *buildStep
+
+      # - step:
+      #     name: 'Deploy To Staging'
+      #     caches:
+      #       - docker
+      #     script:
+      #       - pipe: atlassian/aws-elasticbeanstalk-deploy:0.5.0
+      #         variables:
+      #           AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+      #           AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+      #           AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION_STAGING
+      #           APPLICATION_NAME: $APPLICATION_NAME_STAGING
+      #           S3_BUCKET: $AWS_S3_BUCKET_STAGING
+      #           ENVIRONMENT_NAME: $ENVIRONMENT_NAME_STAGING
+      #           ZIP_FILE: 'application.zip'
+      #           VERSION_LABEL: 'application-monitor-backend-staging-$BITBUCKET_BUILD_NUMBER-multiple'
+
+    master:
+      - <<: *testStep
+
+      - <<: *buildStep
+
+      # - step:
+      #     name: 'Deploy To Production'
+      #     caches:
+      #       - docker
+      #     script:
+      #       - pipe: atlassian/aws-elasticbeanstalk-deploy:0.5.0
+      #         variables:
+      #           AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+      #           AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+      #           AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION_PROD
+      #           APPLICATION_NAME: $APPLICATION_NAME_PROD
+      #           S3_BUCKET: $AWS_S3_BUCKET_PROD
+      #           ENVIRONMENT_NAME: $ENVIRONMENT_NAME_PROD
+      #           ZIP_FILE: 'application.zip'
+      #           VERSION_LABEL: 'application-monitor-backend-master-$BITBUCKET_BUILD_NUMBER-multiple'
+
+    develop:
+      - <<: *testStep
+
+      - <<: *buildStep
